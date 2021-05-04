@@ -20,15 +20,26 @@ cd build
 cmake -E env CXXFLAGS="$CXXFLAGS" cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=g++-9 ..
 cd ..
 
-for cache_size in ${cache_sizes[@]}
-do
-    sed "s/constexpr uint64_t kCacheGBs.*/constexpr uint64_t kCacheGBs = $cache_size;/g" app/main_tcp.cc -i
-    cd build
-    make clean
-    make -j
-    rerun_local_iokerneld_noht
-    rerun_mem_server
-    run_program_noht ./bin/main_tcp 1>$log_folder/log.$cache_size 2>&1
-    cd ..
-done
+#for cache_size in ${cache_sizes[@]}
+#do
+#    sed "s/constexpr uint64_t kCacheGBs.*/constexpr uint64_t kCacheGBs = $cache_size;/g" app/main_tcp.cc -i
+#    cd build
+#    make clean
+#    make -j
+#    rerun_local_iokerneld_noht
+#    rerun_mem_server
+#    run_program_noht ./bin/main_tcp 1>$log_folder/log.$cache_size 2>&1
+#    cd ..
+#done
+
+sed "s/constexpr uint64_t kCacheGBs.*/constexpr uint64_t kCacheGBs = $1;/g" app/main_tcp.cc -i
+cd build
+make clean
+make -j
+rerun_local_iokerneld_noht
+rerun_mem_server
+run_program_noht ./bin/main_tcp 1>$log_folder/log.$1 2>&1
+cd ..
+
 kill_local_iokerneld
+kill_mem_server

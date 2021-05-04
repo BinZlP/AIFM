@@ -10,4 +10,4 @@ cd build
 cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=g++-9 ..
 make -j
 
-sudo taskset -c 1 ./bin/main > $log_folder/log
+sudo taskset -c 1 ./bin/main > $log_folder/log.$1

@@ -14,9 +14,9 @@ links=(https://s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2016-01.csv \
 
 head=yellow_tripdata_2016-01.csv
 
-sudo umount /dev/sda4
-sudo mkfs.ext4 -F /dev/sda4
-sudo mount /dev/sda4 /mnt
+sudo umount /dev/nvme0n1
+sudo mkfs.ext4 -F /dev/nvme0n1
+sudo mount /dev/nvme0n1 /mnt
 sudo chmod a+rw /mnt
 cd /mnt
 
