@@ -3,7 +3,7 @@
 AIFM_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 SHENANGO_PATH=$AIFM_PATH/../shenango
 
-MEM_SERVER_DPDK_IP=18.18.1.3
+MEM_SERVER_DPDK_IP=10.0.0.164
 MEM_SERVER_PORT=8000
 MEM_SERVER_STACK_KB=65536
 
@@ -44,7 +44,7 @@ function kill_local_iokerneld {
 
 function run_local_iokerneld {
     kill_local_iokerneld
-    sudo $SHENANGO_PATH/iokerneld $@ > /dev/null 2>&1 &
+    sudo $SHENANGO_PATH/iokerneld $@ >> /home/dcslab/AIFM/aifm/run_local_iokerneld.log 2>&1 &
     disown -r
     assert_success
     sleep 3
@@ -71,11 +71,11 @@ function kill_mem_server {
 }
 
 function run_mem_server {
-    ssh_execute "sudo $SHENANGO_PATH/iokerneld simple" > /dev/null 2>&1 &
+    ssh_execute "sudo $SHENANGO_PATH/iokerneld simple" >> /home/dcslab/AIFM/aifm/run_mem_server.log 2>&1 &
     sleep 3
     ssh_execute_tty "sudo sh -c 'ulimit -s $MEM_SERVER_STACK_KB; \
                      $AIFM_PATH/bin/tcp_device_server $AIFM_PATH/configs/server.config \
-                     $MEM_SERVER_PORT'" > /dev/null 2>&1 &
+                     $MEM_SERVER_PORT'" >> /home/dcslab/AIFM/aifm/run_mem_server.log 2>&1 &
     sleep 3
 }
 

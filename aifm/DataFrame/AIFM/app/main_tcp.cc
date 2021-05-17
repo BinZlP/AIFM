@@ -22,7 +22,7 @@ extern "C" {
 using namespace hmdf;
 using namespace far_memory;
 
-constexpr uint64_t kCacheGBs            = 1;
+constexpr uint64_t kCacheGBs = 31;
 constexpr uint64_t kCacheSize           = kCacheGBs << 30;
 constexpr uint64_t kFarMemSize          = (1ULL << 30);  // 1 GB. Not relevant here.
 constexpr uint64_t kNumGCThreads        = 40;

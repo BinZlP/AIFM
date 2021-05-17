@@ -10,7 +10,7 @@ function run_single_test {
     if [[ $1 == *"tcp"* ]]; then
     	rerun_mem_server
     fi
-    if run_program ./bin/$1 2>/dev/null | grep -q "Passed"; then
+    if run_program ./bin/$1 2>> /home/dcslab/AIFM/aifm/run_program.log | grep -q "Passed"; then
         say_passed
     else
         say_failed
