@@ -21,10 +21,11 @@ extern "C" {
 using namespace far_memory;
 using namespace std;
 
-constexpr static uint64_t kCacheSize = (128ULL << 20);
-constexpr static uint64_t kFarMemSize = (10ULL << 30);
-constexpr static uint32_t kNumGCThreads = 40;
-constexpr static uint32_t kNumEntries = ((1 << 27) * 10); // 2^30 / 8 elements
+constexpr uint64_t kCacheMBs = 8192;
+constexpr static uint64_t kCacheSize = kCacheMBs << 20;
+constexpr static uint64_t kFarMemSize = (40ULL << 30);
+constexpr static uint32_t kNumGCThreads = 12;
+constexpr static uint64_t kNumEntries = (1024ULL << 20);
 constexpr static uint32_t kNumConnections = 400;
 
 //uint64_t raw_array_A[kNumEntries];
@@ -86,7 +87,18 @@ void add_array_local(uint64_t num_entries, uint64_t *arr1, uint64_t *arr2) {
     arr2[i] += arr1[i];
 }
 
+template <typename T, uint64_t N>
+void add_array_by_raw(uint64_t num_entries, Array<T,N> *array, uint64_t *srt) {
+  if(num_entries != N) return;
+  for(uint64_t i = 0; i < N; i++){
+    DerefScope scope;
+    (*array).at_mut(scope, i) = (*array).at_mut(scope, i)+ srt[i];
+  }
+}
+
 void do_work(FarMemManager *manager) {
+  cout << "Using cache size of: " << kCacheMBs << " MB" << endl;
+
   // Allocate heap for raw arrays
   raw_array_A = (uint64_t *)malloc(sizeof(uint64_t) * (uint64_t)kNumEntries);
   raw_array_B = (uint64_t *)malloc(sizeof(uint64_t) * (uint64_t)kNumEntries);
@@ -98,22 +110,33 @@ void do_work(FarMemManager *manager) {
   // stopwatches
   std::chrono::time_point<std::chrono::steady_clock> times[10];
 
+  cout << "Allocating remote array..." << endl;
+
   // Far memory arrays
+  times[0] = std::chrono::steady_clock::now();
   auto array_A = manager->allocate_array<uint64_t, kNumEntries>();
-  auto array_B = manager->allocate_array<uint64_t, kNumEntries>();
+  //auto array_B = manager->allocate_array<uint64_t, kNumEntries>();
   //auto array_C = manager->allocate_array<uint64_t, kNumEntries>();
+  times[1] = std::chrono::steady_clock::now();
+  cout << "Step 0: "
+      << std::chrono::duration_cast<std::chrono::microseconds>(times[1] - times[0]).count()
+      << " us" << endl;
+
+
+  cout << "Generate random array..." << endl;
 
   // Generate random array of 10GB
   gen_random_array(kNumEntries, raw_array_A);
   gen_random_array(kNumEntries, raw_array_B);
   //gen_initial_array(kNumEntries, raw_array_B); // array for add 1 for every elements.
 
+  cout << "Starting far mem array RW test..." << endl;
 
   // Copy generated array to far memory
   cout << "Step 1: copy random generated arrays to far memory" << endl;
   times[0] = std::chrono::steady_clock::now();
   copy_array(&array_A, raw_array_A);
-  copy_array(&array_B, raw_array_B);
+  //copy_array(&array_B, raw_array_B);
   times[1] = std::chrono::steady_clock::now();
 
   for (uint64_t i = 0; i < kNumEntries; i++) {
@@ -121,11 +144,11 @@ void do_work(FarMemManager *manager) {
     if (array_A.at(scope, i) != raw_array_A[i])
       goto fail;
   }
-  for (uint64_t i = 0; i < kNumEntries; i++) {
+  /*for (uint64_t i = 0; i < kNumEntries; i++) {
     DerefScope scope;
     if (array_B.at(scope, i) != raw_array_B[i])
       goto fail;
-  }
+  }*/
 
 
   // Add 1 for all elements in array_A
@@ -152,7 +175,7 @@ void do_work(FarMemManager *manager) {
   // A = A + B
   cout << "Step 4: add array B to array A" << endl;
   times[6] = std::chrono::steady_clock::now();
-  add_array(&array_A, &array_A, &array_B);
+  add_array_by_raw(kNumEntries, &array_A, raw_array_B);
   times[7] = std::chrono::steady_clock::now();
   for(uint64_t i=0; i<kNumEntries; i++)
     raw_array_A[i] += raw_array_B[i];
