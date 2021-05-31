@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DISK=/dev/sda4
+DISK=/dev/nvme0n1
 SHELL_PWD=`pwd`
 
 # Format disk.
