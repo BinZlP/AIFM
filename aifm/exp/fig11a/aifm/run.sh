@@ -11,8 +11,8 @@ do
     sed "s/constexpr uint64_t kCacheSize = .*/constexpr uint64_t kCacheSize = $local_rams \* Region::kSize;/g" main.cpp -i
     make clean
     make -j
-    run_local_iokerneld_noht
-    run_mem_server
+    rerun_local_iokerneld_noht
+    rerun_mem_server
     run_program_noht ./main 1>log.$local_rams 2>&1 &
     ( tail -f -n0 log.$local_rams & ) | grep -q "Force existing..."
     sudo pkill -9 main
