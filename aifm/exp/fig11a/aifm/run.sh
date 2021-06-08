@@ -12,10 +12,9 @@ do
     make clean
     make -j
     rerun_local_iokerneld_noht
-    rerun_mem_server
+    rerun_mem_server    
     run_program_noht ./main 1>log.$local_rams 2>&1 &
     ( tail -f -n0 log.$local_rams & ) | grep -q "Force existing..."
     sudo pkill -9 main
-    kill_local_iokerneld
-    kill_mem_server
 done
+kill_local_iokerneld

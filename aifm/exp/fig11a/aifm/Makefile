@@ -9,6 +9,9 @@ INC += -I$(SHENANGO_PATH)/bindings/cc -I$(AIFM_PATH)/inc -I$(SHENANGO_PATH)/ksch
 main_src = main.cpp
 main_obj = $(main_src:.cpp=.o)
 
+rw_test_src = rw_test.cpp
+rw_test_obj = $(rw_test_src:.cpp=.o)
+
 lib_src = $(wildcard $(AIFM_PATH)/src/*.cpp)
 lib_src := $(filter-out $(AIFM_PATH)/src/tcp_device_server.cpp,$(lib_src))
 lib_obj = $(lib_src:.cpp=.o)
@@ -23,11 +26,15 @@ override CXXFLAGS += -std=gnu++2a -fconcepts -Wno-unused-function -mcmodel=mediu
 SNAPPY_LIB = -L$(AIFM_PATH)/snappy/build -lsnappy
 
 #must be first
-all: main
+all: main rw_test
 
 main: $(main_obj) $(librt_libs) $(RUNTIME_DEPS) $(main_obj) $(lib_obj)
 	$(LDXX) -o $@ $(LDFLAGS) $(main_obj) $(lib_obj) $(librt_libs) $(RUNTIME_LIBS) \
         $(SNAPPY_LIB) -lnuma
+
+rw_test: $(rw_test_obj) $(librt_libs) $(RUNTIME_DEPS) $(rw_test_obj) $(lib_obj)
+	$(LDXX) -o $@ $(LDFLAGS) $(rw_test_obj) $(lib_obj) $(librt_libs) $(RUNTIME_LIBS) \
+	$(SNAPPY_LIB) -lnuma
 
 ifneq ($(MAKECMDGOALS),clean)
 -include $(dep)   # include all dep files in the makefile
@@ -42,4 +49,4 @@ endif
 
 .PHONY: clean
 clean:
-	rm -f *.o $(dep) main $(AIFM_PATH)/src/*.o
+	rm -f *.o $(dep) main rw_test $(AIFM_PATH)/src/*.o
