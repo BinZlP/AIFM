@@ -19,7 +19,7 @@ extern "C" {
 #include <string>
 #include <unistd.h>
 
-constexpr uint64_t kCacheSize = 13312 * Region::kSize;
+constexpr uint64_t kCacheSize = 16384 * Region::kSize;
 constexpr uint64_t kFarMemSize = 20ULL << 30;
 constexpr uint64_t kNumGCThreads = 15;
 constexpr uint64_t kNumConnections = 600;
@@ -92,11 +92,33 @@ void read_files_to_fm_array(const string &in_file_path) {
   close(fd);
 }
 
+void generate_fm_array() {
+  snappy::FileBlock blk;
+  for (uint32_t i=0; i<snappy::FileBlock::kSize; i++) {
+    blk.data[i] = 0;
+  }
+
+  uint64_t sum = 0;
+  while ( sum < kUncompressedFileSize) {
+    for(uint32_t i=0; i<kNumUncompressedFiles; i++) {
+      DerefScope scope;
+      fm_array_ptrs[i]->at_mut(scope, sum/snappy::FileBlock::kSize) = blk;
+    }
+    sum += snappy::FileBlock::kSize;
+    if ( (sum%(1<<20)) == 0 )
+      cout << "Wrote " << sum << " bytes." << endl;
+  }
+
+  flush_cache();
+}
+
 void fm_compress_files_bench(const string &in_file_path,
                              const string &out_file_path) {
   string out_str;
-  read_files_to_fm_array(in_file_path);
-  
+  //read_files_to_fm_array(in_file_path);
+  generate_fm_array();
+  cout << "Generated far memory" << endl;
+
   // ********************** READ **********************
   auto start = chrono::steady_clock::now();
   for (uint32_t i = 0; i < kNumUncompressedFiles; i++) {
@@ -110,7 +132,7 @@ void fm_compress_files_bench(const string &in_file_path,
 
   }
   auto end = chrono::steady_clock::now();
-  cout << "*** READ RESULT ***";
+  cout << "*** READ RESULT ***" << endl;
   cout << "Elapsed time in microseconds : "
        << chrono::duration_cast<chrono::microseconds>(end - start).count()
        << " µs" << endl;
@@ -124,14 +146,14 @@ void fm_compress_files_bench(const string &in_file_path,
   start = chrono::steady_clock::now();
   for (uint32_t i = 0; i < kNumUncompressedFiles; i++) {
     // std::cout << "Writing array" << i << std::endl;
-    for(uint32_t j = 0; j < kNumUncompressedFiles; j++) {
+    for(uint32_t j = 0; j < kUncompressedFileNumBlocks; j++) {
       DerefScope scope;
       fm_array_ptrs[i]->at_mut(scope, j) =
         write_block;
     }
   }
   end = chrono::steady_clock::now();
-  cout << "*** WRITE RESULT ***";
+  cout << "*** WRITE RESULT ***" << endl;
   cout << "Elapsed time in microseconds : "
     << chrono::duration_cast<chrono::microseconds>(end - start).count()
     << " µs" << endl;
@@ -149,8 +171,10 @@ void do_work(netaddr raddr) {
         manager->allocate_array_heap<snappy::FileBlock,
                                      kUncompressedFileNumBlocks>());
   }
-  fm_compress_files_bench("/mnt/enwik9.uncompressed",
-                          "/mnt/enwik9.compressed.tmp");
+//  fm_compress_files_bench("/mnt/enwik9.uncompressed",
+//                          "/mnt/enwik9.compressed.tmp");
+  fm_compress_files_bench("./enwik9.uncompressed",
+                          "./enwik9.compressed.tmp");
 
   std::cout << "Force existing..." << std::endl;
   exit(0);
