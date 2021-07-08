@@ -9,6 +9,9 @@
 #include <functional>
 #include <type_traits>
 
+#include "profile.hpp"
+extern unsigned long long prefetch_time, prefetch_count;
+
 namespace far_memory {
 
 class FarMemDevice;
@@ -89,6 +92,7 @@ private:
 
   void generate_prefetch_tasks();
   void prefetch_master_fn();
+  void prefetch_slave_fn_internal(GenericUniquePtr**);
   void prefetch_slave_fn(uint32_t tid);
 
 public:

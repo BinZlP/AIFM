@@ -32,6 +32,9 @@ extern "C" {
 #include <utility>
 #include <vector>
 
+#include "profile.hpp"
+unsigned long long swapin_time=0, swapin_count=0;
+
 namespace far_memory {
 ObjLocker FarMemManager::obj_locker_;
 FarMemManager *FarMemManagerFactory::ptr_;
@@ -262,6 +265,11 @@ void FarMemManager::swap_in(bool nt, GenericFarMemPtr *ptr) {
     return;
   }
 
+#ifdef PROFILE
+  struct timespec local_time[2];
+  clock_gettime(CLOCK_MONOTONIC, &local_time[0]);
+#endif
+
   FarMemManager::lock_object(sizeof(obj_id),
                              reinterpret_cast<const uint8_t *>(&obj_id));
   auto guard = helpers::finally([&]() {
@@ -289,6 +297,11 @@ void FarMemManager::swap_in(bool nt, GenericFarMemPtr *ptr) {
     }
     Region::atomic_inc_ref_cnt(obj_addr, -1);
   }
+
+#ifdef PROFILE
+  clock_gettime(CLOCK_MONOTONIC, &local_time[1]);
+  calclock(local_time, &swapin_time, &swapin_count);
+#endif
 }
 
 void FarMemManager::swap_out(GenericFarMemPtr *ptr, Object obj) {

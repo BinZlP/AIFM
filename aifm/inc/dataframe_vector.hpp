@@ -50,6 +50,8 @@
    DISABLE_OFFLOAD_SHUFFLE_DATA_BY_IDX & DISABLE_OFFLOAD_ASSIGN &              \
    DISABLE_OFFLOAD_AGGREGATE)
 
+extern unsigned long long prefetch_time, prefetch_count;
+
 namespace far_memory {
 
 class FarMemManager;

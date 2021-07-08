@@ -10,6 +10,8 @@
 #include <tuple>
 #include <utility>
 
+extern unsigned long long prefetch_time, prefetch_count;
+
 namespace far_memory {
 
 class FarMemManager;
