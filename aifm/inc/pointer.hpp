@@ -115,6 +115,10 @@ public:
   void swap_in(bool nt);
   void flush();
   void move(GenericFarMemPtr &other, uint64_t reset_value);
+
+  // for profiling prefetcher's swap-in
+  void prefetcher_swap_in(bool nt);
+
 };
 
 class GenericUniquePtr : public GenericFarMemPtr {

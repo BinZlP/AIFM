@@ -4,7 +4,9 @@
 
 #include <optional>
 
+#ifdef PROFILE
 #include "profile.hpp"
+#endif
 
 namespace far_memory {
 
@@ -87,7 +89,7 @@ Prefetcher<InduceFn, InferFn, MappingFn>::generate_prefetch_tasks() {
 #ifdef PROFILE
         struct timespec local_time[2];
         clock_gettime(CLOCK_MONOTONIC, &local_time[0]);
-        task->swap_in(nt_);
+        task->prefetcher_swap_in(nt_);
         clock_gettime(CLOCK_MONOTONIC, &local_time[1]);
         calclock(local_time, &prefetch_time, &prefetch_count);
 #else
@@ -103,7 +105,11 @@ FORCE_INLINE void
 Prefetcher<InduceFn, InferFn, MappingFn>::prefetch_slave_fn_internal(GenericUniquePtr **task_ptr) {
   GenericUniquePtr *task = *task_ptr;
   ACCESS_ONCE(*task_ptr) = nullptr;
+#ifdef PROFILE
+  task->prefetcher_swap_in(nt_);
+#else
   task->swap_in(nt_);
+#endif
 }
 
 template <typename InduceFn, typename InferFn, typename MappingFn>

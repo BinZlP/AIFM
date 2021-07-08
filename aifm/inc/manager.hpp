@@ -141,6 +141,10 @@ private:
   uint8_t allocate_ds_id();
   void free_ds_id(uint8_t ds_id);
 
+  // for profiling prefetcher's swap-in
+  void prefetcher_swap_in(bool nt, GenericFarMemPtr *ptr);
+
+
 public:
   using WriteObjectFn = std::function<void(uint32_t data_len)>;
   using EvacNotifier = std::function<bool(Object, WriteObjectFn)>;

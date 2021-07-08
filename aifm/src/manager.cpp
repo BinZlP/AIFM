@@ -32,8 +32,12 @@ extern "C" {
 #include <utility>
 #include <vector>
 
+#ifdef PROFILE
 #include "profile.hpp"
 unsigned long long swapin_time=0, swapin_count=0;
+unsigned long long pref_swapin_time=0, pref_swapin_count=0;
+unsigned long long pref_swapin_size=0, swapin_size=0;
+#endif
 
 namespace far_memory {
 ObjLocker FarMemManager::obj_locker_;
@@ -265,11 +269,6 @@ void FarMemManager::swap_in(bool nt, GenericFarMemPtr *ptr) {
     return;
   }
 
-#ifdef PROFILE
-  struct timespec local_time[2];
-  clock_gettime(CLOCK_MONOTONIC, &local_time[0]);
-#endif
-
   FarMemManager::lock_object(sizeof(obj_id),
                              reinterpret_cast<const uint8_t *>(&obj_id));
   auto guard = helpers::finally([&]() {
@@ -278,6 +277,11 @@ void FarMemManager::swap_in(bool nt, GenericFarMemPtr *ptr) {
   });
 
   if (likely(!meta.is_present())) {
+#ifdef PROFILE
+    struct timespec local_time[2];
+    clock_gettime(CLOCK_MONOTONIC, &local_time[0]);
+#endif
+
     auto obj_addr = allocate_local_object(nt, meta.get_object_size());
     auto obj = Object(obj_addr);
     auto ds_id = meta.get_ds_id();
@@ -296,12 +300,68 @@ void FarMemManager::swap_in(bool nt, GenericFarMemPtr *ptr) {
           [=](GenericFarMemPtr *ptr) { ptr->meta().set_present(obj_addr); });
     }
     Region::atomic_inc_ref_cnt(obj_addr, -1);
-  }
 
 #ifdef PROFILE
-  clock_gettime(CLOCK_MONOTONIC, &local_time[1]);
-  calclock(local_time, &swapin_time, &swapin_count);
+    clock_gettime(CLOCK_MONOTONIC, &local_time[1]);
+    calclock(local_time, &swapin_time, &swapin_count);
+    swapin_size += (unsigned long long)obj_data_len;
 #endif
+
+
+  }
+}
+
+// Prefetcher's swap-in
+void FarMemManager::prefetcher_swap_in(bool nt, GenericFarMemPtr *ptr) {
+  assert(preempt_enabled());
+
+  auto &meta = ptr->meta();
+  auto obj_id = meta.get_object_id();
+  rmb();
+  if (unlikely(meta.is_present())) {
+    return;
+  }
+
+
+  FarMemManager::lock_object(sizeof(obj_id),
+                             reinterpret_cast<const uint8_t *>(&obj_id));
+  auto guard = helpers::finally([&]() {
+    FarMemManager::unlock_object(sizeof(obj_id),
+                                 reinterpret_cast<const uint8_t *>(&obj_id));
+  });
+
+  if (likely(!meta.is_present())) {
+#ifdef PROFILE
+   struct timespec local_time[2];
+   clock_gettime(CLOCK_MONOTONIC, &local_time[0]);
+#endif
+
+    auto obj_addr = allocate_local_object(nt, meta.get_object_size());
+    auto obj = Object(obj_addr);
+    auto ds_id = meta.get_ds_id();
+    uint16_t obj_data_len;
+    auto obj_data_addr = reinterpret_cast<uint8_t *>(obj.get_data_addr());
+    device_ptr_->read_object(ds_id, sizeof(obj_id),
+                             reinterpret_cast<uint8_t *>(&obj_id),
+                             &obj_data_len, obj_data_addr);
+    wmb();
+    obj.init(ds_id, obj_data_len, sizeof(obj_id),
+             reinterpret_cast<uint8_t *>(&obj_id));
+    if (!meta.is_shared()) {
+      meta.set_present(obj_addr);
+    } else {
+      reinterpret_cast<GenericSharedPtr *>(ptr)->traverse(
+          [=](GenericFarMemPtr *ptr) { ptr->meta().set_present(obj_addr); });
+    }
+    Region::atomic_inc_ref_cnt(obj_addr, -1);
+
+#ifdef PROFILE
+    clock_gettime(CLOCK_MONOTONIC, &local_time[1]);
+    calclock(local_time, &pref_swapin_time, &pref_swapin_count);
+    pref_swapin_size += (unsigned long long)obj_data_len;
+#endif
+
+  }
 }
 
 void FarMemManager::swap_out(GenericFarMemPtr *ptr, Object obj) {

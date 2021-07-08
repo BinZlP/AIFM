@@ -58,6 +58,11 @@ void GenericFarMemPtr::swap_in(bool nt) {
   FarMemManagerFactory::get()->swap_in(nt, this);
 }
 
+// Prefetcher's swap-in
+void GenericFarMemPtr::prefetcher_swap_in(bool nt) {
+  FarMemManagerFactory::get()->prefetcher_swap_in(nt, this);
+}
+
 bool GenericFarMemPtr::mutator_migrate_object() {
   auto *manager = FarMemManagerFactory::get();
 
