@@ -8,6 +8,10 @@ extern "C" {
 #include "server.hpp"
 #include "shared_pool.hpp"
 
+#ifdef PROFILE_READ
+extern unsigned long long read_time, read_count, read_size;
+#endif
+
 namespace far_memory {
 
 class FarMemDevice {

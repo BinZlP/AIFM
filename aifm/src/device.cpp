@@ -9,6 +9,13 @@ extern "C" {
 
 #include <cstring>
 
+#ifdef PROFILE_READ
+#include <time.h>
+#include "profile.hpp"
+unsigned long long read_time=0, read_count=0, read_size=0;
+#endif
+
+
 namespace far_memory {
 
 FarMemDevice::FarMemDevice(uint64_t far_mem_size, uint32_t prefetch_win_size)
@@ -167,7 +174,22 @@ void TCPDevice::_read_object(tcpconn_t *remote_slave, uint8_t ds_id,
 
   helpers::tcp_read_until(remote_slave, data_len, sizeof(*data_len));
   if (*data_len) {
+
+#ifdef PROFILE_READ
+    struct timespec local_time[2];
+    clock_gettime(CLOCK_MONOTONIC, &local_time[0]);
+#endif
+
     helpers::tcp_read_until(remote_slave, data_buf, *data_len);
+
+#ifdef PROFILE_READ
+    clock_gettime(CLOCK_MONOTONIC, &local_time[1]);
+    //if(*data_len == 32768) {
+      calclock(local_time, &read_time, &read_count);
+      read_size += *data_len;
+    //}
+#endif
+
   }
 
   Stats::finish_measure_read_object_cycles();
