@@ -5,6 +5,10 @@
 
 #include <type_traits>
 
+#ifdef PROFILE
+extern unsigned long long totalref_count, remoteref_count;
+#endif
+
 namespace far_memory {
 
 FORCE_INLINE FarMemPtrMeta::FarMemPtrMeta() {
@@ -168,6 +172,10 @@ FORCE_INLINE uint8_t FarMemPtrMeta::get_ds_id() const {
 
 template <bool Mut, bool Nt, bool Shared>
 FORCE_INLINE void *GenericFarMemPtr::_deref() {
+#ifdef PROFILE
+  bool is_retry=false;
+  totalref_count++;
+#endif
 retry:
   // 1) movq.
   auto metadata = meta().to_uint64_t();
@@ -178,17 +186,24 @@ retry:
   }
   // 2) test. 3) jne. They got macro-fused into a single uop.
   if (very_unlikely(metadata & exceptions)) {
+  //if (likely(metadata & exceptions)) {
     // Slow path.
     if (very_unlikely(metadata & (FarMemPtrMeta::kPresentClear |
                                   FarMemPtrMeta::kEvacuationSet))) {
+    //if(likely(metadata & (FarMemPtrMeta::kPresentClear | FarMemPtrMeta::kEvacuationSet))) {
       if (metadata & FarMemPtrMeta::kPresentClear) {
         if (meta().is_null()) {
           // In this case, _deref() returns nullptr.
           return nullptr;
         }
+#ifdef PROFILE
+        if(!is_retry) remoteref_count++;
+	is_retry=true;
+#endif
         swap_in(Nt);
         // Just swapped in, need to update metadata (for the obj data addr).
         metadata = meta().to_uint64_t();
+
       } else {
         if (!mutator_migrate_object()) {
           // GC or another thread wins the race. They may still need a while to

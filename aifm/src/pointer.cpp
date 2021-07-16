@@ -5,6 +5,10 @@
 
 #include <cstdint>
 
+#ifdef PROFILE
+unsigned long long totalref_count=0, remoteref_count=0;
+#endif
+
 namespace far_memory {
 
 void FarMemPtrMeta::set_present(uint64_t object_addr) {

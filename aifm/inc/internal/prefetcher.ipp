@@ -4,10 +4,6 @@
 
 #include <optional>
 
-#ifdef PROFILE
-#include "profile.hpp"
-#endif
-
 namespace far_memory {
 
 template <typename InduceFn, typename InferFn, typename MappingFn>
@@ -86,15 +82,7 @@ Prefetcher<InduceFn, InferFn, MappingFn>::generate_prefetch_tasks() {
         wmb();
         status.cv.Signal();
       } else {
-#ifdef PROFILE
-        struct timespec local_time[2];
-        clock_gettime(CLOCK_MONOTONIC, &local_time[0]);
         task->prefetcher_swap_in(nt_);
-        clock_gettime(CLOCK_MONOTONIC, &local_time[1]);
-        calclock(local_time, &prefetch_time, &prefetch_count);
-#else
-        task->swap_in(nt_);
-#endif
       }
     }
   }
@@ -105,11 +93,7 @@ FORCE_INLINE void
 Prefetcher<InduceFn, InferFn, MappingFn>::prefetch_slave_fn_internal(GenericUniquePtr **task_ptr) {
   GenericUniquePtr *task = *task_ptr;
   ACCESS_ONCE(*task_ptr) = nullptr;
-#ifdef PROFILE
   task->prefetcher_swap_in(nt_);
-#else
-  task->swap_in(nt_);
-#endif
 }
 
 template <typename InduceFn, typename InferFn, typename MappingFn>
@@ -126,16 +110,7 @@ Prefetcher<InduceFn, InferFn, MappingFn>::prefetch_slave_fn(uint32_t tid) {
       /*GenericUniquePtr *task = *task_ptr;
       ACCESS_ONCE(*task_ptr) = nullptr;
       task->swap_in(nt_);*/
-#ifdef PROFILE
-      struct timespec local_time[2];
-      clock_gettime(CLOCK_MONOTONIC, &local_time[0]);
       prefetch_slave_fn_internal(task_ptr);
-      clock_gettime(CLOCK_MONOTONIC, &local_time[1]);
-      calclock(local_time, &prefetch_time, &prefetch_count);
-#else
-      prefetch_slave_fn_internal(task_ptr);
-#endif
-
     } else {
       auto start_us = microtime();
       while (ACCESS_ONCE(*task_ptr) == nullptr &&

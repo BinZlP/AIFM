@@ -25,7 +25,7 @@ constexpr const uint32_t kNumUncompressedFiles = 16;
 constexpr uint64_t kUncompressedFileNumBlocks =
     ((kUncompressedFileSize - 1) / snappy::FileBlock::kSize) + 1;
 
-void *buffers[kNumUncompressedFiles - 1];
+//void *buffers[kNumUncompressedFiles];
 
 alignas(4096) snappy::FileBlock file_block;
 snappy::FileBlock* arrays[kNumUncompressedFiles];
@@ -36,33 +36,41 @@ void generate_array() {
     arrays[i] = (snappy::FileBlock *)calloc(snappy::FileBlock::kSize, kUncompressedFileNumBlocks);
   }
 
+  /*for(uint32_t i=0; i<kNumUncompressedFiles; i++) {
+    //buffers[i] = numa_alloc_onnode(kUncompressedFileNumBlocks * snappy::FileBlock::kSize, 1);
+    buffers[i] = (void *)calloc(snappy::FileBlock::kSize, kUncompressedFileNumBlocks);
+    if(buffers[i] == nullptr) helpers::dump_core();
+  }*/
+
   snappy::FileBlock blk;
   for (uint32_t i=0; i<snappy::FileBlock::kSize; i++) {
     blk.data[i] = 0;
   }
 
-  uint64_t sum = 0;
-  while ( sum < kUncompressedFileSize) {
-    for(uint32_t j=0; j<kUncompressedFileNumBlocks; j++) {
+
+  //uint64_t sum = 0;
+  //while ( sum < kUncompressedFileSize) {
     for(uint32_t i=0; i<kNumUncompressedFiles; i++) {
-      arrays[i][j] = blk;
+    for(uint32_t j=0; j<kUncompressedFileNumBlocks; j++) {
+      //memcpy(array[i]+(j*snappy::FileBlock::kSize), blk.data, snappy::FileBlock::kSize);
+      arrays[i][j]=blk;
     }
     }
 
     //DerefScope scope;
     //fm_array_ptr->at_mut(scope, sum/snappy::FileBlock::kSize) = blk;
 
-    sum += snappy::FileBlock::kSize;
-    if ( (sum%(1ULL<<30)) == 0 )
-      cout << "Wrote " << sum << " bytes." << endl;
-  }
+    //sum += snappy::FileBlock::kSize;
+    //if ( (sum%(1ULL<<30)) == 0 )
+      //cout << "Wrote " << sum << " bytes." << endl;
+  //}
 }
 
 
 
 
 
-
+/*
 void read_files_to_block_array(const string &in_file_path) {
   int fd = open(in_file_path.c_str(), O_RDONLY | O_DIRECT);
   if (fd == -1) {
@@ -98,9 +106,9 @@ void read_files_to_block_array(const string &in_file_path) {
   }
 
   close(fd);
-}
+}*/
 
-
+/*
 string read_file_to_string(const string &file_path) {
   ifstream fs(file_path);
   auto guard = helpers::finally([&]() { fs.close(); });
@@ -125,39 +133,58 @@ void compress_file(const string &in_file_path, const string &out_file_path) {
        << chrono::duration_cast<chrono::microseconds>(end - start).count()
        << " µs" << endl;
   write_file_to_string(out_file_path, out_str);
-}
+}*/
 
 
 void compress_files_bench(const string &in_file_path,
                           const string &out_file_path) {
+  volatile int k=0;
+
   //read_files_to_block_array(in_file_path);
+  //string in_str = read_file_to_string(in_file_path);
+
   generate_array();
 
-  /*for (uint32_t i = 0; i < kNumUncompressedFiles - 1; i++) {
+  //cout << "Generated arrays" << endl;
+
+  /*for (uint32_t i = 0; i < kNumUncompressedFiles; i++) {
     buffers[i] = numa_alloc_onnode(kUncompressedFileSize, 1);
     if (buffers[i] == nullptr) {
       helpers::dump_core();
     }
     memcpy(buffers[i], in_str.data(), in_str.size());
   }*/
+  //int buf_size = snappy::FileBlock::kSize * kUncompressedFileNumBlocks;
 
   auto start = chrono::steady_clock::now();
-  /*for (uint32_t i = 0; i < kNumUncompressedFiles; i++) {
-    std::cout << "Compressing file " << i << std::endl;
-    if (i == 0) {
-      snappy::Compress(in_str.data(), in_str.size(), &out_str);
-    } else {
-      snappy::Compress((const char *)buffers[i - 1], kUncompressedFileSize,
-                       &out_str);
-    }
-  }*/
-
-  for (int i=0; i<kNumUncompressedFiles; i++) {
-    for (int j=0; j<kUncompressedFileNumBlocks; j++){
+  for (uint32_t i = 0; i < kNumUncompressedFiles; i++) {
+    std::cout << "Reading file " << i << std::endl;
+    //if (i == 0) {
+      //snappy::Compress(in_str.data(), in_str.size(), &out_str);
+      //for(uint32_t j=0; j<kUncompressedFileNumBlocks; j++) {
+        //ACCESS_ONCE(in_str.data()+(j*snappy::FileBlock::kSize));
+      //}
+    //} else {
+      //snappy::Compress((const char *)buffers[i - 1], kUncompressedFileSize,
+      //                 &out_str);
+      //for(uint32_t j=0; j<kUncompressedFileNumBlocks; j++)
+        //ACCESS_ONCE(((snappy::FileBlock *)buffers[i])[j]);
+    //}
+    for (uint32_t j=0; j<kUncompressedFileNumBlocks; j++){
       file_block = arrays[i][j];
-      for(int k=0; k<1600; k++);
+      for(k=0;k<20000;k++);
     }
   }
+
+  //for(k=0;k<2500;k++);
+
+  /*for (int i=0; i<kNumUncompressedFiles; i++) {
+    //memcpy(tmp, buffers[i], buf_size);
+    for (int j=0; j<kUncompressedFileNumBlocks; j++){
+      file_block = buffers[i][j];
+      for(k=0; k<2500; k++);
+    }
+  }*/
 
   auto end = chrono::steady_clock::now();
   cout << "*** Read complete ***" << endl;

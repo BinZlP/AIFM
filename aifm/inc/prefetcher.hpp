@@ -9,11 +9,6 @@
 #include <functional>
 #include <type_traits>
 
-#ifdef PROFILE
-#include "profile.hpp"
-extern unsigned long long prefetch_time, prefetch_count;
-#endif
-
 namespace far_memory {
 
 class FarMemDevice;

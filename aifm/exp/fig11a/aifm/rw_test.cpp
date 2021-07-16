@@ -23,14 +23,20 @@ extern "C" {
 
 #ifdef PROFILE
 #include "profile.hpp"
-extern unsigned long long prefetch_time, prefetch_count;
 extern unsigned long long swapin_time, swapin_count;
 extern unsigned long long pref_swapin_time, pref_swapin_count;
 extern unsigned long long pref_swapin_size, swapin_size;
+extern unsigned long long totalref_count, remoteref_count;
 unsigned long long deref_time=0, deref_count=0;
+
 #endif
 
-constexpr uint64_t kCacheSize = 8192 * Region::kSize;
+#ifdef PROFILE_READ
+extern unsigned long long read_time, read_count, read_size;
+#endif
+
+
+constexpr uint64_t kCacheSize = 17408 * Region::kSize;
 constexpr uint64_t kFarMemSize = 40ULL << 30;
 constexpr uint64_t kNumGCThreads = 15;
 constexpr uint64_t kNumConnections = 600;
@@ -79,11 +85,13 @@ void flush_cache() {
     fm_array_ptrs[k]->disable_prefetch();
   }
   for (uint32_t i = 0; i < kNumUncompressedFiles; i++) {
+  //for (int i = kNumUncompressedFiles-1; i >= 0; i--) {
     for (uint32_t k = 0; k < kUncompressedFileNumBlocks; k++) {
       file_block = fm_array_ptrs[i]->read(k);
       ACCESS_ONCE(file_block.data[0]);
     }
   }
+  //cout << "Accessed to all entries" << endl;
   for (uint32_t k = 0; k < kNumUncompressedFiles; k++) {
     fm_array_ptrs[k]->enable_prefetch();
   }
@@ -151,29 +159,34 @@ void generate_fm_array() {
 #endif
 
     sum += snappy::FileBlock::kSize;
-    if ( (sum%(1ULL<<30)) == 0 )
-      cout << "Wrote " << sum << " bytes." << endl;
+    //if ( (sum%(1ULL<<30)) == 0 )
+    //  cout << "Wrote " << sum << " bytes." << endl;
   }
 
+
+  cout << "Write done" << endl;
 #ifdef ONE_BIG_ARRAY
   my_flush_cache();
 #else
   flush_cache();
 #endif
+
 }
 
 void fm_compress_files_bench(const string &in_file_path,
                              const string &out_file_path) {
   string out_str;
   //read_files_to_fm_array(in_file_path);
+
   generate_fm_array();
-  cout << "Generated far memory" << endl;
+  //cout << "Generated far memory" << endl;
 #ifdef PROFILE
   cout << "*** Flush cache stats ***" << endl;
+  cout << endl << "[Reference statistics]" << endl
+    << "  Total reference: " << totalref_count << endl
+    << "  Remote reference: " << remoteref_count << endl;
+
   cout << endl << "[Prefetch statistics]" << endl
-    << "  Prefetch total time: " << prefetch_time << endl
-    << "  Prefetch count: " << prefetch_count << endl
-    << "  Prefetch avg. time: " << prefetch_time/prefetch_count << endl << endl
     << "  Prefetch swap-in total time: " << pref_swapin_time << endl
     << "  Prefetch swap-in count: " << pref_swapin_count << endl
     << "  Prefetch swap-in size: " << pref_swapin_size << endl;
@@ -187,21 +200,28 @@ void fm_compress_files_bench(const string &in_file_path,
 
 
   // Initialize counters
-  prefetch_time = 0;
-  prefetch_count = 0;
   pref_swapin_time = 0;
   pref_swapin_count = 0;
   pref_swapin_size = 0;
   swapin_time = 0;
   swapin_count = 0;
   swapin_size = 0;
+  totalref_count = 0;
+  remoteref_count = 0;
 #endif
 
+#ifdef PROFILE_READ
+  read_time = 0;
+  read_count = 0;
+  read_size = 0;
+#endif
 
 
 #ifdef PROFILE
-  struct timespec local_time[2];
+  //struct timespec local_time[2];
 #endif
+  volatile int k = 0;
+
 
   // ********************** READ **********************
   auto start = chrono::steady_clock::now();
@@ -210,29 +230,36 @@ void fm_compress_files_bench(const string &in_file_path,
   for (uint64_t i = 0; i < kUncompressedFileNumBlocks; i++) {
 #ifdef PROFILE
     //clock_gettime(CLOCK_MONOTONIC, &local_time[0]);
-    file_block = fm_array_ptr->read(i);
+    file_block = fm_array_ptr->get().read(i);
     //clock_gettime(CLOCK_MONOTONIC, &local_time[1]);
     //calclock(local_time, &deref_time, &deref_count);
 #else
-    file_block = fm_array_ptr->read(i);
+    file_block = fm_array_ptr->get().read(i);
 #endif
   }
 
-#else
+#else /* 16 arrays */
   for (uint32_t i = 0; i < kNumUncompressedFiles; i++) {
+    //fm_array_ptrs[i].get();
     for (uint32_t j = 0; j < kUncompressedFileNumBlocks; j++) {
 #ifdef PROFILE
         //clock_gettime(CLOCK_MONOTONIC, &local_time[0]);
-        file_block = fm_array_ptrs[i]->read(j);
+        //file_block = fm_array_ptrs[i]->read(j);
+        file_block = fm_array_ptrs[i].get()->read(j);
         //clock_gettime(CLOCK_MONOTONIC, &local_time[1]);
         //calclock(local_time, &deref_time, &deref_count);
         //for(int i=0; i<1600; i++);
 #else
-        file_block = fm_array_ptrs[i]->read(j);
+        file_block = fm_array_ptrs[i].get()->read(j);
+        //file_block = ptr[j];
 #endif
+        for(k=0; k<10000; k++);
+
     }
   }
 #endif
+  //for(k=0; k<10000; k++);
+
 
   auto end = chrono::steady_clock::now();
 
@@ -285,10 +312,12 @@ void fm_compress_files_bench(const string &in_file_path,
 
 
 #ifdef PROFILE
+  cout << endl << "[Reference statistics]" << endl
+    << "  Total reference: " << totalref_count << endl
+    << "  Remote reference: " << remoteref_count << endl;
+
+
   cout << endl << "[Prefetch statistics]" << endl
-    << "  Prefetch total time: " << prefetch_time << endl
-    << "  Prefetch count: " << prefetch_count << endl
-    << "  Prefetch avg. time: " << prefetch_time/prefetch_count << endl << endl
     << "  Prefetch swap-in total time: " << pref_swapin_time << endl
     << "  Prefetch swap-in count: " << pref_swapin_count << endl
     << "  Prefetch swap-in size: " << pref_swapin_size << endl;
@@ -299,6 +328,14 @@ void fm_compress_files_bench(const string &in_file_path,
     << "  Swap-in count: " << swapin_count << endl
     << "  Swap-in size: " << swapin_size << endl;
 
+#endif
+
+#ifdef PROFILE_READ
+  cout << endl << "[TCP Read statistics]" << endl
+    << "  TCP Read total time: " << read_time << endl
+    << "  TCP Read count: " << read_count << endl
+    << "  TCP Read total size: " << read_size << endl
+    << "  TCP Read avg. time: " << read_time/read_count << endl;
 #endif
 
   /*
