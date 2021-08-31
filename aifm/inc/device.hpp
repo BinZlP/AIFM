@@ -9,7 +9,9 @@ extern "C" {
 #include "shared_pool.hpp"
 
 #ifdef PROFILE_READ
+#include <map>
 extern unsigned long long read_time, read_count, read_size;
+extern std::map<int, int> rsize_map;
 #endif
 
 namespace far_memory {

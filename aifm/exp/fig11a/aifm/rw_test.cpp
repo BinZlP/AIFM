@@ -29,10 +29,13 @@ extern unsigned long long pref_swapin_size, swapin_size;
 extern unsigned long long totalref_count, remoteref_count;
 unsigned long long deref_time=0, deref_count=0;
 
+extern unsigned long long pref_p1_time, pref_p2_time, pref_p1_count, pref_p2_count;
+extern unsigned long long prof_write_time, prof_write_count, prof_read1_time, prof_read1_count, prof_read2_time, prof_read2_count;
 #endif
 
 #ifdef PROFILE_READ
 extern unsigned long long read_time, read_count, read_size;
+extern std::map<int, int> rsize_map;
 #endif
 
 
@@ -191,6 +194,8 @@ void fm_compress_files_bench(const string &in_file_path,
     << "  Prefetch swap-in count: " << pref_swapin_count << endl
     << "  Prefetch swap-in size: " << pref_swapin_size << endl;
 
+  cout << endl << "  Prefetch Phase1 avg. time: " << pref_p1_time/pref_p1_count << endl
+    << "  Prefetch Phase2 avg. time: " << pref_p2_time/pref_p2_count << endl;
 
   cout << endl << "[Swap-in statistics]" << endl
     << "  Swap-in total time: " << swapin_time << endl
@@ -208,12 +213,26 @@ void fm_compress_files_bench(const string &in_file_path,
   swapin_size = 0;
   totalref_count = 0;
   remoteref_count = 0;
+
+  pref_p1_time = 0;
+  pref_p2_time = 0;
+  pref_p1_count = 0;
+  pref_p2_count = 0;
+
+  prof_write_time = 0;
+  prof_write_count = 0;
+  prof_read1_time = 0;
+  prof_read1_count = 0;
+  prof_read2_time = 0;
+  prof_read2_count = 0;
 #endif
 
 #ifdef PROFILE_READ
   read_time = 0;
   read_count = 0;
   read_size = 0;
+
+  rsize_map.clear();
 #endif
 
 
@@ -248,7 +267,6 @@ void fm_compress_files_bench(const string &in_file_path,
         file_block = fm_array_ptrs[i].get()->read(j);
         //clock_gettime(CLOCK_MONOTONIC, &local_time[1]);
         //calclock(local_time, &deref_time, &deref_count);
-        //for(int i=0; i<1600; i++);
 #else
         file_block = fm_array_ptrs[i].get()->read(j);
         //file_block = ptr[j];
@@ -322,11 +340,20 @@ void fm_compress_files_bench(const string &in_file_path,
     << "  Prefetch swap-in count: " << pref_swapin_count << endl
     << "  Prefetch swap-in size: " << pref_swapin_size << endl;
 
+  cout << endl << "  Prefetch Phase1 avg. time: " << pref_p1_time/pref_p1_count << endl
+    << "  Prefetch Phase2 avg. time: " << pref_p2_time/pref_p2_count << endl;
+
 
   cout << endl << "[Swap-in statistics]" << endl
     << "  Swap-in total time: " << swapin_time << endl
     << "  Swap-in count: " << swapin_count << endl
     << "  Swap-in size: " << swapin_size << endl;
+
+
+  cout << endl << "[Read-object statistics]" << endl
+    << "  Write avg. time: " << prof_write_time / prof_write_count << endl
+    << "  Read(1) avg. time : " << prof_read1_time / prof_read1_count << endl
+    << "  Read(2) avg. time : " << prof_read2_time / prof_read2_count << endl;
 
 #endif
 
@@ -336,6 +363,17 @@ void fm_compress_files_bench(const string &in_file_path,
     << "  TCP Read count: " << read_count << endl
     << "  TCP Read total size: " << read_size << endl
     << "  TCP Read avg. time: " << read_time/read_count << endl;
+
+  cout << endl << "[TCP Read Size Count]" << endl;
+  int col=10, cur_col=0;
+  for(auto i = rsize_map.begin(); i != rsize_map.end(); i++) {
+    cout << "[" << i->first << "] " << i->second << "  ";
+    if(cur_col == col) {
+      cout << endl;
+      cur_col=0;
+    } else cur_col++;
+  }
+  cout << endl;
 #endif
 
   /*

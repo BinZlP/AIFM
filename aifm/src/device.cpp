@@ -11,10 +11,16 @@ extern "C" {
 
 #ifdef PROFILE_READ
 #include <time.h>
+#include <map>
 #include "profile.hpp"
 unsigned long long read_time=0, read_count=0, read_size=0;
+std::map<int, int> rsize_map;
 #endif
 
+#ifdef PROFILE
+#include "profile.hpp"
+unsigned long long prof_write_time=0, prof_write_count=0, prof_read1_count=0, prof_read1_time=0, prof_read2_time=0, prof_read2_count=0;
+#endif
 
 namespace far_memory {
 
@@ -168,16 +174,37 @@ void TCPDevice::_read_object(tcpconn_t *remote_slave, uint8_t ds_id,
   memcpy(&req[kOpcodeSize + Object::kDSIDSize + Object::kIDLenSize], obj_id,
          obj_id_len);
 
+#ifdef PROFILE
+    struct timespec write_time[2];
+    struct timespec read1_time[2];
+    struct timespec read2_time[2];
+
+    clock_gettime(CLOCK_MONOTONIC, &write_time[0]);
+#endif
+
   helpers::tcp_write_until(remote_slave, req,
                            kOpcodeSize + Object::kDSIDSize +
                                Object::kIDLenSize + obj_id_len);
 
+#ifdef PROFILE
+    clock_gettime(CLOCK_MONOTONIC, &write_time[1]);
+    calclock(write_time, &prof_write_time, &prof_write_count);
+    clock_gettime(CLOCK_MONOTONIC, &read1_time[0]);
+#endif
+
   helpers::tcp_read_until(remote_slave, data_len, sizeof(*data_len));
+
+#ifdef PROFILE
+    clock_gettime(CLOCK_MONOTONIC, &read1_time[1]);
+    calclock(read1_time, &prof_read1_time, &prof_read1_count);
+#endif
   if (*data_len) {
 
 #ifdef PROFILE_READ
     struct timespec local_time[2];
     clock_gettime(CLOCK_MONOTONIC, &local_time[0]);
+#elif PROFILE
+    clock_gettime(CLOCK_MONOTONIC, &read2_time[0]);
 #endif
 
     helpers::tcp_read_until(remote_slave, data_buf, *data_len);
@@ -185,9 +212,13 @@ void TCPDevice::_read_object(tcpconn_t *remote_slave, uint8_t ds_id,
 #ifdef PROFILE_READ
     clock_gettime(CLOCK_MONOTONIC, &local_time[1]);
     //if(*data_len == 32768) {
-      calclock(local_time, &read_time, &read_count);
-      read_size += *data_len;
+    calclock(local_time, &read_time, &read_count);
+    read_size += *data_len;
+    rsize_map[*data_len]+=1;
     //}
+#elif PROFILE
+    clock_gettime(CLOCK_MONOTONIC, &read2_time[1]);
+    calclock(read2_time, &prof_read2_time, &prof_read2_count);
 #endif
 
   }

@@ -37,6 +37,7 @@ extern "C" {
 unsigned long long swapin_time=0, swapin_count=0;
 unsigned long long pref_swapin_time=0, pref_swapin_count=0;
 unsigned long long pref_swapin_size=0, swapin_size=0;
+unsigned long long pref_p1_time=0, pref_p2_time=0, pref_p1_count=0, pref_p2_count=0;
 #endif
 
 namespace far_memory {
@@ -332,8 +333,11 @@ void FarMemManager::prefetcher_swap_in(bool nt, GenericFarMemPtr *ptr) {
 
   if (likely(!meta.is_present())) {
 #ifdef PROFILE
-   struct timespec local_time[2];
-   clock_gettime(CLOCK_MONOTONIC, &local_time[0]);
+    struct timespec local_time[2];
+    struct timespec p1_time[2];
+    struct timespec p2_time[2];
+    clock_gettime(CLOCK_MONOTONIC, &local_time[0]);
+    clock_gettime(CLOCK_MONOTONIC, &p1_time[0]);
 #endif
 
     auto obj_addr = allocate_local_object(nt, meta.get_object_size());
@@ -341,10 +345,21 @@ void FarMemManager::prefetcher_swap_in(bool nt, GenericFarMemPtr *ptr) {
     auto ds_id = meta.get_ds_id();
     uint16_t obj_data_len;
     auto obj_data_addr = reinterpret_cast<uint8_t *>(obj.get_data_addr());
+#ifdef PROFILE
+    clock_gettime(CLOCK_MONOTONIC, &p1_time[1]);
+    calclock(p1_time, &pref_p1_time, &pref_p1_count);
+    clock_gettime(CLOCK_MONOTONIC, &p2_time[0]);
+#endif
     device_ptr_->read_object(ds_id, sizeof(obj_id),
                              reinterpret_cast<uint8_t *>(&obj_id),
                              &obj_data_len, obj_data_addr);
+#ifdef PROFILE
+    clock_gettime(CLOCK_MONOTONIC, &p2_time[1]);
+    calclock(p2_time, &pref_p2_time, &pref_p2_count);
+#endif
+
     wmb();
+
     obj.init(ds_id, obj_data_len, sizeof(obj_id),
              reinterpret_cast<uint8_t *>(&obj_id));
     if (!meta.is_shared()) {
