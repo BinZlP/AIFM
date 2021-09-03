@@ -18,11 +18,18 @@ extern "C" {
 #include <map>
 #include <memory>
 #include <string>
+#include <vector>
+
+#ifdef PROFILE
+#include <time.h>
+#include "profile.hpp"
+unsigned long long deref_time = 0, deref_count = 0;
+#endif
 
 using namespace hmdf;
 using namespace far_memory;
 
-constexpr uint64_t kCacheGBs            = 1;
+constexpr uint64_t kCacheGBs = 9;
 constexpr uint64_t kCacheSize           = kCacheGBs << 30;
 constexpr uint64_t kFarMemSize          = (1ULL << 30);  // 1 GB. Not relevant here.
 constexpr uint64_t kNumGCThreads        = 40;
@@ -30,6 +37,13 @@ constexpr uint64_t kNumElementsPerScope = 1024;
 constexpr uint64_t kNumConnections      = 400;
 
 using Index_t = unsigned long long;
+
+const std::array<const char *,19> col_names = { /* int */ "VendorID", "passenger_count", "RatecodeID", "RatecodeID",
+                                                /* SimpleTime */ "tpep_pickup_datetime", "tpep_dropoff_datetime",
+                                                /* double */ "trip_distance", "pickup_longitude", "pickup_latitude", "dropoff_longitude", 
+                                                             "dropoff_latitude", "fare_amount", "extra", "mta_tax", "tip_amount", "tolls_amount", 
+                                                /* char */ "store_and_fwd_flag"};
+
 
 static double haversine(double lat1, double lon1, double lat2, double lon2)
 {
@@ -48,6 +62,14 @@ static double haversine(double lat1, double lon1, double lat2, double lon2)
     return rad * c;
 }
 
+/*
+StdDataFrame<Index_t> create_data(FarMemManager* manager) {
+  StdDataFrame<Index_t> df(manager);
+  auto vector = manager->allocate_dataframe_vector<Index_t>();
+  
+}
+*/
+
 StdDataFrame<Index_t> load_data(FarMemManager* manager)
 {
     return read_csv<-1, int, SimpleTime, SimpleTime, int, double, double, double, int, char, double,
@@ -58,6 +80,272 @@ StdDataFrame<Index_t> load_data(FarMemManager* manager)
         "fare_amount", "extra", "mta_tax", "tip_amount", "tolls_amount", "improvement_surcharge",
         "total_amount");
 }
+
+void write_all_zero(FarMemManager* manager, StdDataFrame<Index_t>& df, uint64_t sz)
+{
+  std::cout << "Writing zeros in all columns..." << std::endl;
+
+  for(int i=0; i<=3; i++)
+  {
+    std::cout << "Writing column: " << col_names[i] << std::endl;
+    DerefScope scope;
+    auto v = df.get_column<int>(col_names[i]);
+    auto it = v.fbegin(scope);
+    //auto end = v.fend(scope);
+    for(int j=0; j<v.size(); ++j, ++it){
+      if(unlikely(j%kNumElementsPerScope==0)) {
+        scope.renew();
+        it.renew(scope);
+        //end.renew(scope);
+      }
+      *it = 0;
+    }
+  }
+  for(int i=4; i<=5; i++)
+  {
+    std::cout << "Writing column: " << col_names[i] << std::endl;
+    DerefScope scope;
+    auto v = df.get_column<SimpleTime>(col_names[i]);
+    auto it = v.fbegin(scope);
+    //auto end = v.fend(scope);
+    for(int j=0; j<v.size(); ++j, ++it){
+      if(unlikely(j%kNumElementsPerScope==0)) {
+        scope.renew();
+        it.renew(scope);
+        //end.renew(scope);
+      }
+      *it = SimpleTime(0,0,0,0,0,0);
+    }
+  }
+  for(int i=6; i<=15; i++)
+  {
+    std::cout << "Writing column: " << col_names[i] << std::endl;
+    DerefScope scope;
+    auto v = df.get_column<double>(col_names[i]);
+    auto it = v.fbegin(scope);
+    //auto end = v.fend(scope);
+    for(int j=0; j<v.size(); ++j, ++it){
+      if(unlikely(j%kNumElementsPerScope==0)) {
+        scope.renew();
+        it.renew(scope);
+        //end.renew(scope);
+      }
+      *it = 0;
+    }
+  }
+  // last char column
+  {
+    std::cout << "Writing column: " << col_names[16] << std::endl;
+    DerefScope scope;
+    auto v = df.get_column<char>(col_names[16]);
+    auto it = v.fbegin(scope);
+    auto end = v.fend(scope);
+    for(int j=0; j<v.size(); ++j, ++it){
+      if(unlikely(j%kNumElementsPerScope==0)) {
+        scope.renew();
+        it.renew(scope);
+        //end.renew(scope);
+      }
+      *it = 0;
+    }
+  }
+}
+
+void traverse_all(FarMemManager* manager, StdDataFrame<Index_t>& df, uint64_t sz)
+{
+#ifdef PROFILE
+  struct timespec local_time[2];
+#endif
+
+  std::cout << "Traversing all elements in DataFrame..." << std::endl;
+  /*{
+  DerefScope scope;
+  auto one_row = df.get_row(0, col_names);
+  for (uint64_t i=1; i<sz; ++i){
+    if(unlikely(i%kNumElementsPerScope ==0))
+        scope.renew();
+    one_row = df.get_row(i, col_names);
+  }*/
+
+  std::cout <<  "Reading int columns..." << std::endl;
+  for(int i=0; i<=3; i++)
+  {
+    std::cout << "Reading column:" << col_names[i] << std::endl;
+
+    DerefScope scope;
+    auto v = df.get_column<int>(col_names[i]);
+    auto it = v.cfbegin(scope);
+    auto val = *it;
+    //auto end = v.cfend(scope);
+    for(int j=0; j<v.size(); ++j, ++it){
+
+#ifdef PROFILE
+      clock_gettime(CLOCK_MONOTONIC, &local_time[0]);
+#endif
+
+      if(unlikely(j%kNumElementsPerScope==0)) {
+        scope.renew();
+        it.renew(scope);
+        //end.renew(scope);
+      }
+      val = *it;
+
+#ifdef PROFILE
+      clock_gettime(CLOCK_MONOTONIC, &local_time[1]);
+      calclock(local_time, &deref_time, &deref_count);
+#endif
+    }
+  }
+  std::cout << "Reading SimpleTime columns..." << std::endl;
+  for(int i=4; i<=5; i++)
+  {
+    std::cout << "Reading column:" << col_names[i] << std::endl;
+
+    DerefScope scope;
+    auto v = df.get_column<SimpleTime>(col_names[i]);
+    auto it = v.cfbegin(scope);
+    auto val = *it;
+    //auto end = v.cfend(scope);
+    for(int j=0; j<v.size(); ++j, ++it){
+#ifdef PROFILE
+      clock_gettime(CLOCK_MONOTONIC, &local_time[0]);
+#endif
+
+      if(unlikely(j%kNumElementsPerScope==0)) {
+        scope.renew();
+        it.renew(scope);
+        //end.renew(scope);
+      }
+      val = *it;
+
+#ifdef PROFILE
+      clock_gettime(CLOCK_MONOTONIC, &local_time[1]);
+      calclock(local_time, &deref_time, &deref_count);
+#endif
+    }
+  }
+  std::cout << "Reading double columns..." << std::endl;
+  for(int i=6; i<=15; i++)
+  {
+    std::cout << "Reading column:" << col_names[i] << std::endl;
+
+    DerefScope scope;
+    auto v = df.get_column<double>(col_names[i]);
+    auto it = v.cfbegin(scope);
+    auto val = *it;
+    //auto end = v.cfend(scope);
+    for(int j=1; j<v.size(); ++j, ++it){
+#ifdef PROFILE
+      clock_gettime(CLOCK_MONOTONIC, &local_time[0]);
+#endif
+
+      if(unlikely(j%kNumElementsPerScope==0)) {
+        scope.renew();
+        it.renew(scope);
+        //end.renew(scope);
+      }
+      val = *it;
+
+#ifdef PROFILE
+      clock_gettime(CLOCK_MONOTONIC, &local_time[1]);
+      calclock(local_time, &deref_time, &deref_count);
+#endif
+    }
+  }
+  // last char column
+  std::cout << "Reading a char column..." << std:: endl;
+  {
+    std::cout << "Reading column:" << col_names[16] << std::endl;
+
+    DerefScope scope;
+    auto v = df.get_column<char>(col_names[16]);
+    auto it = v.cfbegin(scope);
+    auto val = *it;
+    //auto end = v.cfend(scope);
+    for(int j=1; j<v.size(); ++j, ++it){
+#ifdef PROFILE
+      clock_gettime(CLOCK_MONOTONIC, &local_time[0]);
+#endif
+
+      if(unlikely(j%kNumElementsPerScope==0)) {
+        scope.renew();
+        it.renew(scope);
+        //end.renew(scope);
+      }
+      val = *it;
+
+#ifdef PROFILE
+      clock_gettime(CLOCK_MONOTONIC, &local_time[1]);
+      calclock(local_time, &deref_time, &deref_count);
+#endif
+    }
+  }
+}
+
+
+
+void traverse_int(FarMemManager* manager, StdDataFrame<Index_t>& df)
+{
+  std::cout << "Traversing int elements in DataFrame..." << std::endl;
+  auto vendor_vector = df.get_column<int>("VendorID");
+  auto pc_vector = df.get_column<int>("passenger_count");
+  auto RID_vector = df.get_column<int>("RatecodeID");
+  auto payment_vector = df.get_column<int>("payment_type");
+
+  {
+    DerefScope scope;
+    auto v_it = vendor_vector.cfbegin(scope);
+    auto pc_it = pc_vector.cfbegin(scope);
+    auto r_it = RID_vector.cfbegin(scope);
+    auto pay_it = payment_vector.cfbegin(scope);
+
+    for (uint64_t i=0; i<vendor_vector.size(); ++i, ++v_it, ++pc_it, ++r_it, ++pay_it) {
+      if(unlikely(i%kNumElementsPerScope ==0)) {
+        scope.renew();
+        v_it.renew(scope);
+        pc_it.renew(scope);
+        r_it.renew(scope);
+        pay_it.renew(scope);
+      }
+      *v_it; *pc_it; *r_it; *pay_it;
+    }
+  }
+
+
+}
+
+
+void write_int_column(FarMemManager* manager, StdDataFrame<Index_t>& df, uint64_t sz)
+{
+  std::cout << "Writing 0s in DataFrame..." << std::endl;
+  auto vendor_vector = df.get_column<int>("VendorID");
+  auto pc_vector = df.get_column<int>("passenger_count");
+  auto RID_vector = df.get_column<int>("RatecodeID");
+  auto payment_vector = df.get_column<int>("payment_type");
+
+  {
+    DerefScope scope;
+    auto v_it = vendor_vector.fbegin(scope);
+    auto pc_it = pc_vector.fbegin(scope);
+    auto r_it = RID_vector.fbegin(scope);
+    auto pay_it = payment_vector.fbegin(scope);
+
+    for (uint64_t i=0; i<vendor_vector.size(); ++i, ++v_it, ++pc_it, ++r_it, ++pay_it) {
+      if(unlikely(i%kNumElementsPerScope ==0)) {
+        scope.renew();
+        v_it.renew(scope);
+        pc_it.renew(scope);
+        r_it.renew(scope);
+        pay_it.renew(scope);
+      }
+      *v_it = 0; *pc_it = 0; *r_it = 0; *pay_it = 0;
+    }
+  }
+}
+
+
+
+
 
 void print_number_vendor_ids_and_unique(FarMemManager* manager, StdDataFrame<Index_t>& df)
 {
@@ -324,6 +612,7 @@ void analyze_trip_durations_of_timestamps(far_memory::FarMemManager* manager,
 
 void do_work(FarMemManager* manager)
 {
+/*
     std::chrono::time_point<std::chrono::steady_clock> times[10];
     auto df  = load_data(manager);
     times[0] = std::chrono::steady_clock::now();
@@ -346,6 +635,33 @@ void do_work(FarMemManager* manager)
     analyze_trip_durations_of_timestamps<char>(manager, df, "pickup_month");
     times[9] = std::chrono::steady_clock::now();
 
+read_csv<-1, int, SimpleTime, SimpleTime, int, double, double, double, int, char, double,
+                    double, int, double, double, double, double, double, double, double>(
+        manager, "/mnt/all.csv", "VendorID", "tpep_pickup_datetime", "tpep_dropoff_datetime",
+        "passenger_count", "trip_distance", "pickup_longitude", "pickup_latitude", "RatecodeID",
+        "store_and_fwd_flag", "dropoff_longitude", "dropoff_latitude", "payment_type",
+        "fare_amount", "extra", "mta_tax", "tip_amount", "tolls_amount", "improvement_surcharge",
+        "total_amount")
+
+*/
+
+    std::chrono::time_point<std::chrono::steady_clock> times[3];
+    uint64_t num_rows;
+    auto df = load_data(manager);
+
+    {
+      auto idx_vec = df.get_index();
+      num_rows = idx_vec.size();
+    }
+
+    times[0] = std::chrono::steady_clock::now();
+    //traverse_int(manager, df);
+    traverse_all(manager, df, num_rows);
+    times[1] = std::chrono::steady_clock::now();
+    //write_int_column(manager, df);
+    write_all_zero(manager, df, num_rows);
+    times[2] = std::chrono::steady_clock::now();
+
     for (uint32_t i = 1; i < std::size(times); i++) {
         std::cout << "Step " << i << ": "
                   << std::chrono::duration_cast<std::chrono::microseconds>(times[i] - times[i - 1])
@@ -353,8 +669,20 @@ void do_work(FarMemManager* manager)
                   << " us" << std::endl;
     }
     std::cout << "Total: "
-              << std::chrono::duration_cast<std::chrono::microseconds>(times[9] - times[0]).count()
+              << std::chrono::duration_cast<std::chrono::microseconds>(times[2] - times[0]).count()
               << " us" << std::endl;
+
+#ifdef PROFILE
+    std::cout << std::endl << "[Prefetch statistics]" << std::endl
+      << "  Prefetch total time: " << prefetch_time << std::endl
+      << "  Prefetch count: " << prefetch_count << std::endl
+      << "  Prefetch average time: " << prefetch_time / prefetch_count << std::endl;
+
+    std::cout << std::endl << "[Dereference statistics]" << std::endl
+      << "  Deref. total time: " << deref_time << std::endl
+      << "  Deref. count: " << deref_count << std::endl
+      << "  Deref. average time: " << deref_time / deref_count << std::endl;
+#endif
 }
 
 void _main(void* arg)

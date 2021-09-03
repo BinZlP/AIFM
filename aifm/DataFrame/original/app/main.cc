@@ -50,7 +50,7 @@ const std::array<const char *,19> col_names = { /* int */ "VendorID", "passenger
                                                              "dropoff_latitude", "fare_amount", "extra", "mta_tax", "tip_amount", "tolls_amount", 
                                                 /* char */ "store_and_fwd_flag"};
 
-void write_all_zero(StdDataFrame<uint64_t>& df, uint64_t sz)
+void write_all_zero(StdDataFrame<uint64_t>& df)
 {
     std::cout << "Writing zeros in all columns..." << std::endl;
 
@@ -70,7 +70,7 @@ void write_all_zero(StdDataFrame<uint64_t>& df, uint64_t sz)
         auto v = df.get_column<SimpleTime>(col_names[i]);
         auto it = v.begin();
 
-        for(int j=0; j<v.size(); ++j, ++it) *it=0;
+        for(int j=0; j<v.size(); ++j, ++it) *it=SimpleTime(0,0,0,0,0,0);
     }
 
     for(int i=6; i<=15; i++)
@@ -91,7 +91,7 @@ void write_all_zero(StdDataFrame<uint64_t>& df, uint64_t sz)
     }
 }
 
-void traverse_all(StdDataFrame<uint64_t>& df, uint64_t sz)
+void traverse_all(StdDataFrame<uint64_t>& df)
 {
 
     std::cout << "Traversing all elemnts in DataFrame..." << std::endl;
@@ -99,7 +99,7 @@ void traverse_all(StdDataFrame<uint64_t>& df, uint64_t sz)
     std::cout << "Reading int columns..." << std::endl;
     for(int i=0; i<=3; i++)
     {
-        std::cout << "Reading column:" << col_names[i] << endl;
+        std::cout << "Reading column:" << col_names[i] << std::endl;
         auto v = df.get_column<int>(col_names[i]);
         auto it = v.begin();
         auto val = *it;
@@ -109,7 +109,7 @@ void traverse_all(StdDataFrame<uint64_t>& df, uint64_t sz)
     std::cout << "Reading SimpleTime columns..." << std::endl;
     for(int i=4; i<=5; i++)
     {
-        std::cout << "Reading column:" << col_names[i] << endl;
+        std::cout << "Reading column:" << col_names[i] << std::endl;
         auto v = df.get_column<SimpleTime>(col_names[i]);
         auto it = v.begin();
         auto val = *it;
@@ -119,7 +119,7 @@ void traverse_all(StdDataFrame<uint64_t>& df, uint64_t sz)
     std::cout << "Reading double columns..." << std::endl;
     for(int i=6; i<=15; i++)
     {
-        std::cout << "Reading column:" << col_names[i] << endl;
+        std::cout << "Reading column:" << col_names[i] << std::endl;
         auto v = df.get_column<int>(col_names[i]);
         auto it = v.begin();
         auto val = *it;
@@ -128,7 +128,7 @@ void traverse_all(StdDataFrame<uint64_t>& df, uint64_t sz)
 
     std::cout << "Reading char columns..." << std::endl;
     {
-        std::cout << "Reading column:" << col_names[16] << endl;
+        std::cout << "Reading column:" << col_names[16] << std::endl;
         auto v = df.get_column<int>(col_names[16]);
         auto it = v.begin();
         auto val = *it;
@@ -340,6 +340,7 @@ void analyze_trip_durations_of_timestamps(StdDataFrame<uint64_t>& df, const char
 
 int main()
 {
+/*
     std::chrono::time_point<std::chrono::steady_clock> times[10];
     auto df  = load_data();
     times[0] = std::chrono::steady_clock::now();
@@ -361,6 +362,16 @@ int main()
     times[8] = std::chrono::steady_clock::now();
     analyze_trip_durations_of_timestamps<char>(df, "pickup_month");
     times[9] = std::chrono::steady_clock::now();
+*/
+
+    std::chrono::time_point<std::chrono::steady_clock> times[3];
+    auto df = load_data();
+    times[0] = std::chrono::steady_clock::now();
+    traverse_all(df);
+    times[1] = std::chrono::steady_clock::now();
+    write_all_zero(df);
+    times[2] = std::chrono::steady_clock::now();
+
 
     for (uint32_t i = 1; i < std::size(times); i++) {
         std::cout << "Step " << i << ": "
@@ -369,7 +380,7 @@ int main()
                   << " us" << std::endl;
     }
     std::cout << "Total: "
-              << std::chrono::duration_cast<std::chrono::microseconds>(times[9] - times[0]).count()
+              << std::chrono::duration_cast<std::chrono::microseconds>(times[2] - times[0]).count()
               << " us" << std::endl;
 
     return 0;

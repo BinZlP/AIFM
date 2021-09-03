@@ -75,7 +75,7 @@ function run_mem_server {
     sleep 3
     ssh_execute_tty "sudo sh -c 'ulimit -s $MEM_SERVER_STACK_KB; \
                      $AIFM_PATH/bin/tcp_device_server $AIFM_PATH/configs/server.config \
-                     $MEM_SERVER_PORT'" >> /home/dcslab/AIFM/aifm/run_mem_server.log 2>&1 &
+                     $MEM_SERVER_PORT > $AIFM_PATH/readlog'" >> /home/dcslab/AIFM/aifm/run_mem_server.log 2>&1 &
     sleep 3
 }
 
