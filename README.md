@@ -53,7 +53,7 @@ sudo reboot
 wget "http://content.mellanox.com/ofed/MLNX_OFED-4.6-1.0.1.1/MLNX_OFED_LINUX-4.6-1.0.1.1-ubuntu18.04-x86_64.tgz"
 tar xvf MLNX_OFED_LINUX-4.6-1.0.1.1-ubuntu18.04-x86_64.tgz
 cd MLNX_OFED_LINUX-4.6-1.0.1.1-ubuntu18.04-x86_64
-sudo ./mlnxofedinstall --add-kernel-support --dpdk --upstream-libs
+sudo ./mlnxofedinstall --add-kernel-support --dpdk --upstream-libs # it's fine to see 'Failed to install libibverbs-dev DEB'
 sudo /etc/init.d/openibd restart
 ```
 
@@ -63,7 +63,7 @@ echo Y | sudo apt-get --fix-broken install
 echo Y | sudo apt-get install libnuma-dev libmnl-dev libnl-3-dev libnl-route-3-dev
 echo Y | sudo apt-get install libcrypto++-dev libcrypto++-doc libcrypto++-utils
 echo Y | sudo apt-get install software-properties-common
-echo Y | sudo apt-get install gcc-9 g++-9
+echo Y | sudo apt-get install gcc-9 g++-9 python-pip
 echo Y | sudo add-apt-repository ppa:ubuntu-toolchain-r/test
 echo Y | sudo apt-get purge cmake
 sudo pip install cmake
